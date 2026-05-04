@@ -1247,6 +1247,13 @@ class HindsightMemoryProvider(MemoryProvider):
             t.start()
 
     def system_prompt_block(self) -> str:
+        base = self._build_base_block()
+        directives = self._fetch_active_directives_block()
+        if directives:
+            return base + "\n\n" + directives
+        return base
+
+    def _build_base_block(self) -> str:
         if self._memory_mode == "context":
             return (
                 f"# Hindsight Memory\n"
@@ -1267,6 +1274,45 @@ class HindsightMemoryProvider(MemoryProvider):
             f"Use hindsight_recall to search, hindsight_reflect for synthesis, "
             f"hindsight_retain to store facts."
         )
+
+    def _fetch_active_directives_block(self) -> str:
+        """Fetch active directives from the Hindsight REST API.
+
+        Returns formatted block or empty string on failure.
+        Called once per session (system prompt is cached), so one HTTP
+        call is acceptable.  Failures are silently downgraded.
+        """
+        try:
+            import urllib.request
+            import urllib.error
+
+            url = f"{self._api_url}/v1/default/banks/{self._bank_id}/directives"
+            req = urllib.request.Request(url)
+            if self._api_key:
+                req.add_header("Authorization", f"Bearer {self._api_key}")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode())
+
+            items = data.get("items", [])
+            if not items:
+                return ""
+
+            active = [d for d in items if d.get("is_active", True)]
+            if not active:
+                return ""
+
+            parts = ["# Operational Directives"]
+            for d in active:
+                content = d.get("content", "").strip()
+                name = d.get("name", d.get("id", ""))
+                if content:
+                    parts.append(f"### {name}\n{content}")
+            return "\n\n".join(parts)
+        except Exception as exc:
+            # Daemon unreachable, timeout, or parse error — silent downgrade.
+            # System prompt should never be blocked by a directives fetch.
+            logger.debug("Directives fetch for system prompt failed: %s", exc)
+            return ""
 
     def prefetch(self, query: str, *, session_id: str = "") -> str:
         if self._prefetch_thread and self._prefetch_thread.is_alive():
