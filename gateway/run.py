@@ -14988,7 +14988,7 @@ class GatewayRunner:
                         # it — the run completed before we could process a
                         # __reset__ signal from the stream consumer.  Without
                         # this, the progress bubble stays visible on Discord.
-                        if _auto_delete and can_delete and progress_msg_id:
+                        if _cleanup_progress and _auto_delete and can_delete and progress_msg_id:
                             try:
                                 if type(adapter).delete_message is not BasePlatformAdapter.delete_message:
                                     _progress_chat_id = _progress_thread_id if _progress_thread_id else source.chat_id
@@ -15045,7 +15045,7 @@ class GatewayRunner:
 
                         # Delete the closed-off progress bubble if the adapter
                         # supports it — keeps Discord chats clean
-                        if _auto_delete and can_delete and progress_lines and progress_msg_id:
+                        if _cleanup_progress and _auto_delete and can_delete and progress_lines and progress_msg_id:
                             try:
                                 if type(adapter).delete_message is not BasePlatformAdapter.delete_message:
                                     _progress_chat_id = _progress_thread_id if _progress_thread_id else source.chat_id
@@ -15086,7 +15086,7 @@ class GatewayRunner:
                         # adapter supports it — keeps Discord chats clean.
                         # (The CancelledError handler below handles the interrupt
                         # path; this covers the "agent finished normally" case.)
-                        if _auto_delete and progress_msg_id:
+                        if _cleanup_progress and _auto_delete and progress_msg_id:
                             try:
                                 if type(adapter).delete_message is not BasePlatformAdapter.delete_message:
                                     _progress_chat_id = _progress_thread_id if _progress_thread_id else source.chat_id
@@ -15197,7 +15197,7 @@ class GatewayRunner:
                                 # can_edit) — Discord supports delete even when
                                 # editing fails.  Nested-gate bug (May 2026);
                                 # delete was buried inside `if can_edit`.
-                                if _auto_delete and can_delete and progress_msg_id:
+                                if _cleanup_progress and _auto_delete and can_delete and progress_msg_id:
                                     try:
                                         if type(adapter).delete_message is not BasePlatformAdapter.delete_message:
                                             _progress_chat_id = _progress_thread_id if _progress_thread_id else source.chat_id
@@ -15233,7 +15233,7 @@ class GatewayRunner:
 
                     # Delete the progress bubble after final edit if the
                     # adapter supports it — keeps Discord chats clean
-                    if _auto_delete and progress_msg_id:
+                    if _cleanup_progress and _auto_delete and progress_msg_id:
                         try:
                             if type(adapter).delete_message is not BasePlatformAdapter.delete_message:
                                 _progress_chat_id = _progress_thread_id if _progress_thread_id else source.chat_id
@@ -16586,6 +16586,8 @@ class GatewayRunner:
                     return result_holder[0] or {"final_response": response, "messages": history}
 
                 was_interrupted = result.get("interrupted")
+                if result.get("failed"):
+                    return result
                 if not was_interrupted:
                     # Queued message after normal completion — deliver the first
                     # response before processing the queued follow-up.
@@ -16799,8 +16801,11 @@ class GatewayRunner:
             _chat_id_snapshot = source.chat_id
             _adapter_snapshot = _cleanup_adapter
             _loop_snapshot = asyncio.get_running_loop()
+            _response_failed = bool(response.get("failed"))
 
             def _cleanup_temp_bubbles() -> None:
+                if _response_failed:
+                    return
                 async def _delete_all() -> None:
                     for _mid in _ids_snapshot:
                         try:
