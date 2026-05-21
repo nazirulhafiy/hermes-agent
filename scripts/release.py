@@ -365,6 +365,7 @@ AUTHOR_MAP = {
     "olegwn@gmail.com": "nederev",
     "vesper@askclaw.dev": "askclaw-vesper",
     "nazirulhafiy@gmail.com": "nazirulhafiy",
+    "hafiy@Hafiy-Zakarias-MacBook-Air.local": "nazirulhafiy",
     "CREWorx@users.noreply.github.com": "BadTechBandit",
     "yoimexex@gmail.com": "Yoimex",
     "6548898+romanornr@users.noreply.github.com": "romanornr",
